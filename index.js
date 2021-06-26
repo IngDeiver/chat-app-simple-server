@@ -1,174 +1,252 @@
+const express = require("express");
+const app = express();
+const port = 9000;
+const User = require("./User");
+const Room = require("./Room");
+const Message = require("./Message");
 
-const express = require('express')
-const app = express()
-const port = 9000
-const User = require('./User')
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const admin = require('firebase-admin');
+const admin = require("firebase-admin");
 admin.initializeApp({
   credential: admin.credential.applicationDefault(),
 });
 
-mongoose.connect(process.env.CHAT_APP_DB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.CHAT_APP_DB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'Database connection error:'));
-db.once('open', function () {
+db.on("error", console.error.bind(console, "Database connection error:"));
+db.once("open", function () {
   console.log("Database connected");
 });
 
 const sendNotifcationsAllUsersExecpNewUser = async (newUserPushId) => {
-
-  const users = await User.find({})
-  const tokens = users.map(user => user.push_id).filter(push_id => push_id !== newUserPushId)
+  const users = await User.find({});
+  const tokens = users
+    .map((user) => user.push_id)
+    .filter((push_id) => push_id !== newUserPushId);
 
   if (tokens.length > 0) {
     const message = {
       notification: {
-        title: 'New user',
-        body: 'New user was register in ChatApp,  it!',
-        imageUrl: 'https://www.shareicon.net/data/2016/06/30/788859_add_512x512.png'
+        title: "New user",
+        body: "New user was register in ChatApp,  it!",
+        imageUrl:
+          "https://www.shareicon.net/data/2016/06/30/788859_add_512x512.png",
       },
       data: {
-        screen: 'Users',
+        screen: "Users",
       },
-      tokens
+      tokens,
     };
 
-    admin.messaging().sendMulticast(message)
+    admin
+      .messaging()
+      .sendMulticast(message)
       .then((response) => {
-        console.log(response.successCount + ' messages were sent successfully');
-      }).catch(err => console.log(err.message));
+        console.log(response.successCount + " messages were sent successfully");
+      })
+      .catch((err) => {
+        console.log(err.message);
+        return next(err);
+      });
   }
-
-}
-
+};
 
 const createOrUpdateUserWithOauth = (req, res) => {
   console.log("OAUTH");
-  const push_id = req.body.push_id
-  User.findOneAndUpdate({ oauth_id: req.body.oauth_id }, req.body, { new: true, overwrite: true }, function (error, result) {
-    if (!error) {
-      // If the document doesn't exist
-      if (!result) {
-        console.log("New account");
-        // Create it
-        new User(req.body).save()
-          .then(doc => {
-            sendNotifcationsAllUsersExecpNewUser(push_id)
-            res.json({
-              push_id,
-              _id: doc._id
+  const push_id = req.body.push_id;
+  User.findOneAndUpdate(
+    { oauth_id: req.body.oauth_id },
+    req.body,
+    { new: true, overwrite: true },
+    function (error, result) {
+      if (!error) {
+        // If the document doesn't exist
+        if (!result) {
+          console.log("New account");
+          // Create it
+          new User(req.body)
+            .save()
+            .then((doc) => {
+              sendNotifcationsAllUsersExecpNewUser(push_id);
+              res.json({
+                push_id,
+                _id: doc._id,
+              });
             })
-          })
-          .catch(error => {
-            console.log(error.message);
-            res.status(500).json({ error: error.message })
-          })
+            .catch((error) => {
+              console.log(error.message);
+              return next(err);
+            });
+        } else {
+          console.log("Exist account");
+          res.json({
+            push_id,
+            _id: result._id,
+          });
+        }
       } else {
-        console.log("Exist account");
-        res.json({
-          push_id,
-          _id: result._id
-        })
+        res.status(500).json({ error: error.message });
       }
-
-    } else {
-      res.status(500).json({ error: error.message })
     }
-  });
-}
-
+  );
+};
 
 const createOrUpdateUserWithFingerPrintMethod = (req, res) => {
   console.log("FP");
-  const push_id = req.body.push_id
-  User.findOneAndUpdate({ name: req.body.name }, req.body, { new: true, overwrite: true }, function (error, result) {
-    if (!error) {
-      // If the document doesn't exist
-      if (!result) {
-        console.log("New account");
-        // Create it
-        new User(req.body).save()
-          .then(doc => {
-            sendNotifcationsAllUsersExecpNewUser(push_id)
-            res.json({
-              push_id,
-              _id: doc._id
+  const push_id = req.body.push_id;
+  User.findOneAndUpdate(
+    { name: req.body.name },
+    req.body,
+    { new: true, overwrite: true },
+    function (error, result) {
+      if (!error) {
+        // If the document doesn't exist
+        if (!result) {
+          console.log("New account");
+          // Create it
+          new User(req.body)
+            .save()
+            .then((doc) => {
+              sendNotifcationsAllUsersExecpNewUser(push_id);
+              res.json({
+                push_id,
+                _id: doc._id,
+              });
             })
-          })
-          .catch(error => {
-            console.log(error.message);
-            res.status(500).json({ error: error.message })
-          })
+            .catch((error) => {
+              console.log(error.message);
+              return next(err);
+            });
+        } else {
+          console.log("Exist account");
+          res.json({
+            push_id,
+            _id: result._id,
+          });
+        }
       } else {
-        console.log("Exist account");
-        res.json({
-          push_id,
-          _id: result._id
-        })
+        res.status(500).json({ error: error.message });
       }
-
-    } else {
-      res.status(500).json({ error: error.message })
     }
-  });
-}
+  );
+};
 
-app.use(express.json())
+app.use(express.json());
 
-app.post('/user', (req, res) => {
-  const oauth_id = req.body.oauth_id
+app.post("/user", (req, res, next) => {
+  const oauth_id = req.body.oauth_id;
   if (oauth_id) {
-    createOrUpdateUserWithOauth(req, res)
+    createOrUpdateUserWithOauth(req, res);
   } else {
-    createOrUpdateUserWithFingerPrintMethod(req, res)
+    createOrUpdateUserWithFingerPrintMethod(req, res);
   }
+});
 
-})
-
-app.get('/user', async (req, res) => {
+app.get("/user", async (req, res, next) => {
   try {
-    const users = await User.find({})
-    res.json({ users })
+    const users = await User.find({});
+    res.json({ users });
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    return next(err);
   }
-})
+});
 
-app.post('/notification', (req, res) => {
-  console.log("Message: ",req.body);
-  const messages = req.body.messages
+app.post("/notification", async (req, res, next) => {
+  console.log("Message: ", req.body);
+  const body = req.body.body;
+  const tokenUserAuthenticated = req.body.tokenUserAuthenticated;
+  const tokenUserToSend = req.body.tokenUserToSend;
+  const roomId = req.body.roomId;
+  const nameUserToSend = req.body.nameUserToSend;
+
   try {
     const message = {
       notification: {
-        title: 'New message',
-        body: messages[0].text,
+        title: "New message",
+        body,
       },
       data: {
-        screen: 'Chat',
-        messages: JSON.stringify(messages),
-        fromUser: req.body.from // user own, for answer messages
+        screen: "Chat",
+        toUser: req.body.from, // _id (reversed sense)
+        tokenUserToSend: tokenUserAuthenticated,
+        nameUserToSend,
       },
-      token: req.body.tokenUserToSend
+      token: tokenUserToSend,
     };
 
-    admin.messaging().send(message)
-    .then((response) => {
-      // Response is a message ID string.
-      console.log('Successfully sent message:', response);
-    })
-    .catch((error) => {
-      console.log('Error sending message:', error);
-    });
-  
+    console.log("ROOM_id: ", roomId);
+    // add new message to room
+    const room = await Room.updateOne(
+      { _id: roomId },
+      {
+        $push: {
+          messages: new Message({
+            text: body,
+            createdAt: new Date(),
+            user: req.body.from,
+          }),
+        },
+      }
+    );
+
+    if (room.nModified > 0) { // send push notification
+      admin
+        .messaging()
+        .send(message)
+        .then((response) => {
+          // Response is a message ID string.
+          console.log("Successfully sent message:", response);
+          res.sendStatus(200);
+        })
+        .catch((error) => {
+          console.log("Error sending message:", error);
+          return next(error);
+        });
+    }
   } catch (error) {
     console.log("ERROR-->", error.message);
-    res.status(500).json({ error: error.message })
+    return next(error);
   }
-})
+});
 
+app.post("/room", async (req, res, next) => {
+  try {
+    const from = req.body.from;
+    const to = req.body.to;
+
+    let room = await Room.findOne({
+      roomId: {
+        $in: [`${from}/${to}`, `${to}/${from}`],
+      },
+    }).exec();
+
+    if (room) {
+      console.log("Room exist: ");
+      Room.populate(
+        room,
+        { path: "messages.user", model: "User" },
+        function (err, user) {
+          if (err) {
+            return next(err);
+          }
+          res.json(user);
+        }
+      );
+    } else {
+      room = await new Room({ roomId: `${from}/${to}`, messages: [] }).save();
+      console.log("New Room: ", room);
+      res.json(room);
+    }
+  } catch (error) {
+    console.log("ERROR-->", error.message);
+    return next(error);
+  }
+});
 
 app.listen(port, () => {
-  console.log(`App listening at http://localhost:${port}`)
-})
+  console.log(`App listening at http://localhost:${port}`);
+});
