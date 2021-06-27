@@ -4,10 +4,10 @@ const port = 9000;
 const User = require("./User");
 const Room = require("./Room");
 const Message = require("./Message");
-
 const mongoose = require("mongoose");
-
 const admin = require("firebase-admin");
+const activeSocketsDirectory = {}
+
 admin.initializeApp({
   credential: admin.credential.applicationDefault(),
 });
@@ -156,7 +156,6 @@ app.get("/user", async (req, res, next) => {
 });
 
 app.post("/notification", async (req, res, next) => {
-  console.log("Message: ", req.body);
   const body = req.body.body;
   const tokenUserAuthenticated = req.body.tokenUserAuthenticated;
   const tokenUserToSend = req.body.tokenUserToSend;
@@ -180,20 +179,40 @@ app.post("/notification", async (req, res, next) => {
 
     console.log("ROOM_id: ", roomId);
     // add new message to room
+    const newMessage = new Message({
+      text: body,
+      createdAt: new Date(),
+      user: req.body.from,
+    })
     const room = await Room.updateOne(
       { _id: roomId },
       {
         $push: {
-          messages: new Message({
-            text: body,
-            createdAt: new Date(),
-            user: req.body.from,
-          }),
+          messages: newMessage,
         },
       }
     );
 
-    if (room.nModified > 0) { // send push notification
+    if (room.nModified > 0) { // send message and push notification 
+      const TO = req.body.to
+      console.log("Directory: ", activeSocketsDirectory);
+      console.log("User Id - socket: ", TO);
+      const theSocketId = activeSocketsDirectory[TO]
+      const socketInstanceUserToSendMessage = await io.in(theSocketId).fetchSockets();
+      
+      if(socketInstanceUserToSendMessage.length > 0){
+        Message.populate(newMessage, { path: 'user', model: 'User'},function (err, newMessagePopulate) {
+          if (err) {
+            return next(err);
+          }
+          socketInstanceUserToSendMessage[0].emit("private-message", newMessagePopulate, roomId,  req.body.from)
+          socketInstanceUserToSendMessage[0].emit("new-message", req.body.from)
+        })
+        
+      }else{
+        console.log(`${TO} NO connected`);
+      }
+
       admin
         .messaging()
         .send(message)
@@ -238,7 +257,7 @@ app.post("/room", async (req, res, next) => {
       );
     } else {
       room = await new Room({ roomId: `${from}/${to}`, messages: [] }).save();
-      console.log("New Room: ", room);
+      console.log("New Room: ");
       res.json(room);
     }
   } catch (error) {
@@ -247,6 +266,27 @@ app.post("/room", async (req, res, next) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`App listening at http://localhost:${port}`);
-});
+const httpServer = require("http").createServer(app);
+const io = require("socket.io")(httpServer);
+
+
+
+io.on('connect', async (socket) => {
+  console.log("New socket connection: ", socket.id);
+
+  socket.on("disconnect", () => {
+  console.log("Disconnect: ", socket.id);
+   delete activeSocketsDirectory[socket.handshake.query.userId] 
+   console.log("New directory: ", activeSocketsDirectory);
+  });
+
+  activeSocketsDirectory[socket.handshake.query.userId] = socket.id
+  console.log("Directory: ", activeSocketsDirectory);
+})
+
+
+
+httpServer.listen(port);
+// app.listen(port, () => {
+//   console.log(`App listening at http://localhost:${port}`);
+// });
