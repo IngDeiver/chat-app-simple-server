@@ -1,7 +1,7 @@
 {
   "name": "chatapp-server",
   "version": "1.0.0",
-  "description": "Chat App  simple server",
+  "description": "Chat App  simple server ",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
