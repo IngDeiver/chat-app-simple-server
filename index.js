@@ -287,6 +287,3 @@ io.on('connect', async (socket) => {
 
 
 httpServer.listen(port);
-// app.listen(port, () => {
-//   console.log(`App listening at http://localhost:${port}`);
-// });
